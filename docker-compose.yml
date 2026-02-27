@@ -3,13 +3,10 @@ version: '3.8'
 services:
   cw-dashboard:
     build: .
-    image: cw-dashboard:latest
-    container_name: cw-dashboard
+    image: samuelstreets/connectwise-ticket-dashboard:latest
+    container_name: connectwise-ticket-dashboard
     ports:
       - "5000:5000"
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
     environment:
       # ── ConnectWise API credentials ────────────────────────────────────────
       # Site: your ConnectWise instance (e.g. eu.myconnectwise.net)
