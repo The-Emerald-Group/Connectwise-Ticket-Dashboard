@@ -21,7 +21,6 @@ docker compose up -d
 ### Option B: docker run
 
 ```bash
-docker build -t cw-dashboard .
 
 docker run -d \
   -p 5000:5000 \
@@ -32,7 +31,6 @@ docker run -d \
   -e CW_CLIENT_ID=your_client_id \
   --name cw-dashboard \
   --restart unless-stopped \
-  cw-dashboard
 ```
 
 ---
