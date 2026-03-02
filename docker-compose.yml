@@ -1,6 +1,6 @@
 services:
   cw-dashboard:
-    image: samuelstreets/Connectwise-Ticket-Dashboard:latest
+    image: samuelstreets/connectwise-ticket-dashboard:latest
     container_name: Connectwise-Ticket-Dashboard
     ports:
       - "5000:5000"
