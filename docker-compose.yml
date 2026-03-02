@@ -1,12 +1,10 @@
 services:
   cw-dashboard:
-    image: samuelstreets/cw-dashboard:latest
-    container_name: cw-dashboard
+    image: samuelstreets/Connectwise-Ticket-Dashboard:latest
+    container_name: Connectwise-Ticket-Dashboard
     ports:
-      - "0.0.0.0:5000:5000"
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
+      - "5000:5000"
+
     environment:
       # ── ConnectWise API credentials ────────────────────────────────────────
       - CW_SITE=api-eu.myconnectwise.net
@@ -16,14 +14,24 @@ services:
       - CW_CLIENT_ID=your_client_id_here
       - CW_VERIFY_SSL=false
 
-      # ── Refresh interval (seconds) ────────────────────────────────────────
+      # ── Refresh interval (seconds) ─────────────────────────────────────────
       # 60=1min 120=2min 300=5min 600=10min 900=15min
       - CW_REFRESH_INTERVAL=300
 
       # ── Excluded ticket statuses ───────────────────────────────────────────
-      # Comma-separated list of statuses to hide from the stale tickets view.
-      # Case-insensitive. Add or remove as needed.
+      # Comma-separated, case-insensitive. Tickets with these statuses are hidden.
       - CW_EXCLUDE_STATUSES=Chased,Awaiting Delivery,On Hold,Completed,Closed,Resolved,Cancelled
+
+      # ── Excluded ticket priorities ─────────────────────────────────────────
+      # Comma-separated, case-insensitive. Tickets with these priorities are hidden.
+      # Example: - CW_EXCLUDE_PRIORITIES=Low,Planning
+      - CW_EXCLUDE_PRIORITIES=
+
+      # ── Owner card colour thresholds (ticket count) ────────────────────────
+      # Cards turn red when a tech has >= CW_THRESH_RED stale tickets
+      # Cards turn amber when a tech has >= CW_THRESH_AMBER stale tickets
+      - CW_THRESH_RED=20
+      - CW_THRESH_AMBER=15
 
     restart: unless-stopped
     healthcheck:
