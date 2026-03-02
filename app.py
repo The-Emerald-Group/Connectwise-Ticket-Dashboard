@@ -16,6 +16,7 @@ CW_PUBLIC_KEY  = os.environ.get("CW_PUBLIC_KEY", "")
 CW_PRIVATE_KEY = os.environ.get("CW_PRIVATE_KEY", "")
 CW_CLIENT_ID   = os.environ.get("CW_CLIENT_ID", "")
 HTTPS_PROXY    = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or ""
+REFRESH_INTERVAL = int(os.environ.get("CW_REFRESH_INTERVAL", "300"))
 VERIFY_SSL     = os.environ.get("CW_VERIFY_SSL", "true").lower() != "false"
 
 # Statuses to exclude from stale tickets view — driven by CW_EXCLUDE_STATUSES env var
@@ -108,6 +109,10 @@ HTML = r"""<!DOCTYPE html>
   .countdown-ring .bg { fill: none; stroke: #333; stroke-width: 2.5; }
   .countdown-ring .progress { fill: none; stroke: var(--good); stroke-width: 2.5; stroke-linecap: round; transition: stroke-dashoffset 1s linear; }
   .countdown-label { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 8px; color: var(--good); font-weight: 700; }
+  .refresh-picker { display: flex; gap: 4px; align-items: center; }
+  .refresh-opt { background: #1a1a1a; border: 1px solid #333; color: var(--text-dim); font-size: .7rem; font-weight: 600; padding: 4px 9px; border-radius: 4px; cursor: pointer; transition: all .2s; font-family: inherit; letter-spacing: .5px; }
+  .refresh-opt:hover { border-color: var(--good); color: var(--good); }
+  .refresh-opt.active { background: rgba(76,217,100,.15); border-color: var(--good); color: var(--good); }
   .config-warning { background: rgba(255,59,48,0.08); border-left: 4px solid var(--crit); padding: 16px 24px; margin: 20px 24px; border-radius: 0 8px 8px 0; display: none; }
   .config-warning.visible { display: block; }
   .config-warning h3 { color: var(--crit); font-size: .9rem; margin-bottom: 8px; }
@@ -162,6 +167,13 @@ HTML = r"""<!DOCTYPE html>
 <header>
   <div class="logo">CW<span>.</span>Watch</div>
   <div class="header-right">
+    <div class="refresh-picker">
+      <button class="refresh-opt" data-val="60" onclick="setRefreshInterval(60)">1m</button>
+      <button class="refresh-opt" data-val="120" onclick="setRefreshInterval(120)">2m</button>
+      <button class="refresh-opt" data-val="300" onclick="setRefreshInterval(300)">5m</button>
+      <button class="refresh-opt" data-val="600" onclick="setRefreshInterval(600)">10m</button>
+      <button class="refresh-opt" data-val="900" onclick="setRefreshInterval(900)">15m</button>
+    </div>
     <div class="refresh-status">
       <div class="pulse-dot"></div>
       <span id="last-updated-label">Loading…</span>
@@ -170,7 +182,7 @@ HTML = r"""<!DOCTYPE html>
           <circle class="bg" cx="13" cy="13" r="10"/>
           <circle class="progress" id="countdown-circle" cx="13" cy="13" r="10" stroke-dasharray="62.8" stroke-dashoffset="0"/>
         </svg>
-        <span class="countdown-label" id="countdown-text">60</span>
+        <span class="countdown-label" id="countdown-text">5m</span>
       </div>
     </div>
   </div>
@@ -202,16 +214,28 @@ HTML = r"""<!DOCTYPE html>
 </main>
 
 <script>
-const REFRESH_INTERVAL = 60;
+const REFRESH_OPTIONS = [60, 120, 300, 600, 900];
+let REFRESH_INTERVAL = parseInt(localStorage.getItem('cw_refresh') || '{{ refresh_interval }}');
 let countdown = REFRESH_INTERVAL;
 const circle = document.getElementById('countdown-circle');
 const circumference = 62.8;
+
+function setRefreshInterval(seconds) {
+  REFRESH_INTERVAL = seconds;
+  countdown = seconds;
+  localStorage.setItem('cw_refresh', seconds);
+  document.querySelectorAll('.refresh-opt').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.val) === seconds);
+  });
+}
 
 setInterval(() => {
   countdown--;
   if (countdown <= 0) { countdown = REFRESH_INTERVAL; refreshAll(); }
   circle.style.strokeDashoffset = circumference * (1 - countdown / REFRESH_INTERVAL);
-  document.getElementById('countdown-text').textContent = countdown;
+  const mins = Math.floor(countdown / 60);
+  const secs = countdown % 60;
+  document.getElementById('countdown-text').textContent = mins > 0 ? mins + 'm' : secs + 's';
 }, 1000);
 
 function fmtDate(iso) {
@@ -258,7 +282,7 @@ async function loadStaleTickets() {
         const url = `https://${window._cwSite||'eu.myconnectwise.net'}/v4_6_release/services/system_io/Service/fv_sr100_request.rails?service_recid=${t.id}`;
         return `<div class="issue-item ${sc}">
           <span class="issue-summary">#${t.id} — ${t.summary||'(no summary)'}<span class="stale-hours">${h}h</span></span>
-          <span class="instruction"><a href="${url}" target="_blank">${t.company||''} · ${t.status||''} · ${fmtDate(t.lastUpdated)}</a></span>
+          <span class="instruction"><a href="${url}" target="_blank">${t.company||''} · ${t.board||''} · ${t.status||''} · ${fmtDate(t.lastUpdated)}</a></span>
         </div>`;
       }).join('');
       return `<div class="card ${cls}">
@@ -325,13 +349,15 @@ function refreshAll() {
 
 checkConfig();
 refreshAll();
+// Init button state from saved preference
+setRefreshInterval(REFRESH_INTERVAL);
 </script>
 </body>
 </html>"""
 
 @app.route("/")
 def index():
-    return render_template_string(HTML)
+    return render_template_string(HTML, refresh_interval=REFRESH_INTERVAL)
 
 @app.route("/api/stale-tickets")
 def stale_tickets():
