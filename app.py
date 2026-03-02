@@ -17,6 +17,14 @@ CW_PRIVATE_KEY = os.environ.get("CW_PRIVATE_KEY", "")
 CW_CLIENT_ID   = os.environ.get("CW_CLIENT_ID", "")
 HTTPS_PROXY    = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or ""
 REFRESH_INTERVAL = int(os.environ.get("CW_REFRESH_INTERVAL", "300"))
+
+# Priorities to exclude from stale tickets view
+_raw_excl_pri = os.environ.get("CW_EXCLUDE_PRIORITIES", "")
+EXCLUDE_PRIORITIES = {p.strip().lower() for p in _raw_excl_pri.split(",") if p.strip()}
+
+# Ticket count thresholds for owner card colour
+THRESH_RED   = int(os.environ.get("CW_THRESH_RED",   "20"))
+THRESH_AMBER = int(os.environ.get("CW_THRESH_AMBER", "15"))
 VERIFY_SSL     = os.environ.get("CW_VERIFY_SSL", "true").lower() != "false"
 
 # Statuses to exclude from stale tickets view — driven by CW_EXCLUDE_STATUSES env var
@@ -230,6 +238,8 @@ HTML = r"""<!DOCTYPE html>
 <script>
 const REFRESH_OPTIONS = [60, 120, 300, 600, 900];
 let REFRESH_INTERVAL = parseInt(localStorage.getItem('cw_refresh') || '{{ refresh_interval }}');
+const THRESH_RED   = {{ thresh_red }};
+const THRESH_AMBER = {{ thresh_amber }};
 let countdown = REFRESH_INTERVAL;
 const circle = document.getElementById('countdown-circle');
 const circumference = 62.8;
@@ -266,6 +276,12 @@ function sevClass(hours) {
 function cardClass(tickets) {
   if (tickets.some(t => (t.hoursStale||0) >= 48)) return 'Red';
   if (tickets.some(t => (t.hoursStale||0) >= 24)) return 'Amber';
+  return 'Green';
+}
+
+function ownerCardClass(count) {
+  if (count >= THRESH_RED)   return 'Red';
+  if (count >= THRESH_AMBER) return 'Amber';
   return 'Green';
 }
 
@@ -307,7 +323,7 @@ async function loadStaleTickets() {
     const ownersSorted = Object.entries(byOwner).sort(([,a],[,b]) => b.length - a.length);
     const ownerCards = ownersSorted.map(([owner, tickets]) => {
       const worst = Math.max(...tickets.map(t => t.hoursStale||0));
-      const cls = cardClass(tickets);
+      const cls = ownerCardClass(tickets.length);
       const critCount = tickets.filter(t => (t.hoursStale||0) >= 48).length;
       const warnCount = tickets.filter(t => (t.hoursStale||0) >= 24 && (t.hoursStale||0) < 48).length;
       const staleCount = tickets.filter(t => (t.hoursStale||0) < 24).length;
@@ -328,7 +344,7 @@ async function loadStaleTickets() {
     const topOwner = ownersSorted[0];
     const topOwnerHTML = topOwner ? (() => {
       const [owner, tickets] = topOwner;
-      const cls = cardClass(tickets);
+      const cls = ownerCardClass(tickets.length);
       const critCount = tickets.filter(t => (t.hoursStale||0) >= 48).length;
       const warnCount = tickets.filter(t => (t.hoursStale||0) >= 24 && (t.hoursStale||0) < 48).length;
       const badges = [
@@ -420,7 +436,7 @@ setRefreshInterval(REFRESH_INTERVAL);
 
 @app.route("/")
 def index():
-    return render_template_string(HTML, refresh_interval=REFRESH_INTERVAL)
+    return render_template_string(HTML, refresh_interval=REFRESH_INTERVAL, thresh_red=THRESH_RED, thresh_amber=THRESH_AMBER)
 
 @app.route("/api/stale-tickets")
 def stale_tickets():
@@ -438,6 +454,12 @@ def stale_tickets():
 
         # Filter out any closed/completed statuses in Python as a safety net
         tickets = [t for t in tickets if not is_closed(t)]
+
+        # Filter out excluded priorities
+        if EXCLUDE_PRIORITIES:
+            tickets = [t for t in tickets if
+                (t.get("priority", {}).get("name", "") if isinstance(t.get("priority"), dict) else "").lower().strip()
+                not in EXCLUDE_PRIORITIES]
 
         result = []
         for t in tickets:
