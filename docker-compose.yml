@@ -1,24 +1,26 @@
 services:
   cw-dashboard:
-    build: .
-    image: samuelstreets/connectwise-ticket-dashboard:latest
-    container_name: connectwise-ticket-dashboard
+    image: samuelstreets/cw-dashboard:latest
+    container_name: cw-dashboard
     ports:
-      - "5000:5000"
+      - "0.0.0.0:5000:5000"
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     environment:
       # ── ConnectWise API credentials ────────────────────────────────────────
-      # Site: your ConnectWise instance (e.g. eu.myconnectwise.net)
-      - CW_SITE=eu.myconnectwise.net
-
-      # Company ID: the short code used to log in to ConnectWise
+      - CW_SITE=api-eu.myconnectwise.net
       - CW_COMPANY=yourcompanyid
-
-      # API keys: create under System > Members > (member) > API Keys
       - CW_PUBLIC_KEY=your_public_key_here
       - CW_PRIVATE_KEY=your_private_key_here
-
-      # Client ID: register at https://developer.connectwise.com/ClientID
       - CW_CLIENT_ID=your_client_id_here
+      - CW_VERIFY_SSL=false
+
+      # ── Excluded ticket statuses ───────────────────────────────────────────
+      # Comma-separated list of statuses to hide from the stale tickets view.
+      # Case-insensitive. Add or remove as needed.
+      - CW_EXCLUDE_STATUSES=Chased,Awaiting Delivery,On Hold,Completed,Closed,Resolved,Cancelled
+
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/config-check')"]
