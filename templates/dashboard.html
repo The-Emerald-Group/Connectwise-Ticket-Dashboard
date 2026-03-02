@@ -213,6 +213,32 @@
     margin-bottom: 14px;
   }
 
+  /* ── EXPANDABLE CARDS ── */
+  .expandable-card { 
+    cursor: pointer; 
+    user-select: none; 
+  }
+  
+  .expandable-card:hover { 
+    filter: brightness(1.1); 
+  }
+  
+  .ticket-list { 
+    display: none; 
+    margin-top: 15px; 
+    border-top: 1px solid var(--border); 
+    padding-top: 15px; 
+    cursor: default; 
+  }
+  
+  .expand-icon { 
+    font-size: 0.8em; 
+    color: var(--text-dim); 
+    display: inline-block; 
+    margin-left: 8px; 
+    transition: transform 0.2s ease; 
+  }
+
   /* ── ISSUE ITEMS ── */
   .issue-item {
     margin-bottom: 8px;
@@ -399,7 +425,7 @@
           <circle class="progress" id="countdown-circle" cx="13" cy="13" r="10"
             stroke-dasharray="62.8" stroke-dashoffset="0"/>
         </svg>
-        <span class="countdown-label" id="countdown-text">60</span>
+        <span class="countdown-label" id="countdown-text">{{ refresh_interval }}</span>
       </div>
     </div>
   </div>
@@ -419,19 +445,17 @@
 
 <main>
 
-  <!-- ── STALE TICKETS ── -->
   <div class="section-gap">
     <div class="section-header">
       <span class="section-title">Stale Tickets</span>
       <span class="count-pill" id="stale-count-pill">—</span>
-      <span style="font-size:0.72rem;color:var(--text-muted)">not updated in 8+ hours · grouped by customer</span>
+      <span style="font-size:0.72rem;color:var(--text-muted)">not updated in 8+ hours · grouped by owner</span>
     </div>
     <div id="stale-container">
       <div class="loading"><div class="spinner"></div>Loading…</div>
     </div>
   </div>
 
-  <!-- ── CLOSED BY USER ── -->
   <div class="section-gap">
     <div class="section-header">
       <span class="section-title">Closed by Technician</span>
@@ -446,7 +470,8 @@
 </main>
 
 <script>
-const REFRESH_INTERVAL = 60;
+// Take refresh interval from Flask variable (or default to 60)
+const REFRESH_INTERVAL = parseInt('{{ refresh_interval }}') || 60;
 let countdown = REFRESH_INTERVAL;
 const circle = document.getElementById('countdown-circle');
 const countdownText = document.getElementById('countdown-text');
@@ -464,6 +489,23 @@ function fmtDate(iso) {
   return new Date(iso).toLocaleString('en-GB', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
 }
 
+// ── Toggle Expandable Tickets ─────────────────────────────────────────────────
+function toggleTickets(event, card) {
+  // Prevent the card from collapsing if the user clicks a link inside the ticket
+  if (event.target.closest('a')) return;
+  
+  const list = card.querySelector('.ticket-list');
+  const icon = card.querySelector('.expand-icon');
+  
+  if (list.style.display === 'none' || !list.style.display) {
+    list.style.display = 'block';
+    icon.style.transform = 'rotate(180deg)'; // Flip the arrow up
+  } else {
+    list.style.display = 'none';
+    icon.style.transform = 'rotate(0deg)'; // Flip the arrow down
+  }
+}
+
 // ── Severity helpers ──────────────────────────────────────────────────────────
 function sevClass(hours) {
   if (hours >= 48) return 'sev-critical';
@@ -472,7 +514,7 @@ function sevClass(hours) {
 }
 
 function cardClass(tickets) {
-  // Worst ticket in a customer group drives the card colour
+  // Worst ticket in a group drives the card colour
   if (tickets.some(t => (t.hoursStale || 0) >= 48)) return 'Red';
   if (tickets.some(t => (t.hoursStale || 0) >= 24)) return 'Amber';
   return 'Green';
@@ -503,26 +545,29 @@ async function loadStaleTickets() {
       return;
     }
 
-    // Group by company
-    const byCompany = {};
+    // 1. Group tickets by USER (Owner)
+    const byOwner = {};
     for (const t of data.tickets) {
-      const co = t.company || 'Unknown';
-      if (!byCompany[co]) byCompany[co] = [];
-      byCompany[co].push(t);
+      const owner = t.owner || 'Unassigned';
+      if (!byOwner[owner]) byOwner[owner] = [];
+      byOwner[owner].push(t);
     }
 
-    // Sort companies: worst first
-    const sorted = Object.entries(byCompany).sort(([, a], [, b]) => {
+    // 2. Sort Owners: worst first
+    const sorted = Object.entries(byOwner).sort(([, a], [, b]) => {
       const worstHours = arr => Math.max(...arr.map(t => t.hoursStale || 0));
       return worstHours(b) - worstHours(a);
     });
 
-    const cards = sorted.map(([company, tickets]) => {
+    // 3. Generate HTML Cards
+    const cards = sorted.map(([owner, tickets]) => {
       const cls = cardClass(tickets);
+      
       const issueHTML = tickets.map(t => {
         const sc = sevClass(t.hoursStale || 0);
         const h = t.hoursStale !== null ? t.hoursStale : '?';
         const url = `https://${window._cwSite || 'eu.myconnectwise.net'}/v4_6_release/services/system_io/Service/fv_sr100_request.rails?service_recid=${t.id}`;
+        
         return `
           <div class="issue-item ${sc}">
             <span class="issue-summary">
@@ -530,16 +575,22 @@ async function loadStaleTickets() {
               <span class="stale-hours">${h}h</span>
             </span>
             <span class="instruction">
-              <a href="${url}" target="_blank">${t.owner || 'Unassigned'} · ${t.status || ''} · Last updated ${fmtDate(t.lastUpdated)}</a>
+              <a href="${url}" target="_blank">${t.company || 'Unknown'} · ${t.status || ''} · Last updated ${fmtDate(t.lastUpdated)}</a>
             </span>
           </div>`;
       }).join('');
 
       return `
-        <div class="card ${cls}">
-          <div class="cust-name">${company}</div>
-          <div class="status-meta">${tickets.length} stale ticket${tickets.length > 1 ? 's' : ''}</div>
-          ${issueHTML}
+        <div class="card ${cls} expandable-card" onclick="toggleTickets(event, this)">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="cust-name">${owner} <span class="expand-icon">▼</span></div>
+            <div style="font-size: 1.5rem; font-weight: 700;">${tickets.length}</div>
+          </div>
+          <div class="status-meta">stale ticket${tickets.length > 1 ? 's' : ''}</div>
+          
+          <div class="ticket-list">
+            ${issueHTML}
+          </div>
         </div>`;
     }).join('');
 
