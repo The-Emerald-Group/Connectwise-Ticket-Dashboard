@@ -163,11 +163,15 @@ HTML = r"""<!DOCTYPE html>
   .oldest-section { padding: 20px 20px 0 20px; }
   .oldest-label { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: var(--crit); margin-bottom: 12px; }
   .section-divider { border-top: 1px solid var(--border); margin: 20px 0 0 0; }
-  .sev-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+  .sev-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
   .sev-badge { font-size: .7rem; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
   .sev-badge.crit { background: rgba(255,59,48,.2); color: var(--crit); border: 1px solid rgba(255,59,48,.3); }
   .sev-badge.warn { background: rgba(255,204,0,.15); color: var(--warn); border: 1px solid rgba(255,204,0,.25); }
-  .sev-badge.stale { background: rgba(68,68,68,.3); color: #888; border: 1px solid #444; }
+  .owner-ticket-row { display: flex; align-items: center; justify-content: space-between; }
+  .owner-total { font-size: 2.2rem; font-weight: 800; line-height: 1; }
+  .owner-total.red { color: var(--crit); }
+  .owner-total.amber { color: var(--warn); }
+  .owner-total.green { color: var(--good); }
   .empty-state p { color: var(--text-dim); font-size: .8rem; text-transform: uppercase; letter-spacing: 1px; }
 </style>
 </head>
@@ -298,7 +302,7 @@ async function loadStaleTickets() {
       if (!byOwner[owner]) byOwner[owner] = [];
       byOwner[owner].push(t);
     }
-    const ownersSorted = Object.entries(byOwner).sort(([a],[b]) => a.localeCompare(b));
+    const ownersSorted = Object.entries(byOwner).sort(([,a],[,b]) => b.length - a.length);
     const ownerCards = ownersSorted.map(([owner, tickets]) => {
       const worst = Math.max(...tickets.map(t => t.hoursStale||0));
       const cls = cardClass(tickets);
@@ -307,12 +311,13 @@ async function loadStaleTickets() {
       const staleCount = tickets.filter(t => (t.hoursStale||0) < 24).length;
       const badges = [
         critCount > 0 ? `<span class="sev-badge crit">${critCount} 48h+</span>` : '',
-        warnCount > 0 ? `<span class="sev-badge warn">${warnCount} 24h+</span>` : '',
-        staleCount > 0 ? `<span class="sev-badge stale">${staleCount} 8h+</span>` : ''
+        warnCount > 0 ? `<span class="sev-badge warn">${warnCount} 24h+</span>` : ''
       ].filter(Boolean).join('');
       return `<div class="card ${cls}">
-        <div class="cust-name">${owner}</div>
-        <div class="status-meta" style="margin-bottom:10px">${tickets.length} stale ticket${tickets.length>1?'s':''}</div>
+        <div class="owner-ticket-row">
+          <div class="cust-name">${owner}</div>
+          <div class="owner-total ${cls.toLowerCase()}">${tickets.length}</div>
+        </div>
         <div class="sev-badges">${badges}</div>
       </div>`;
     }).join('');
