@@ -39,8 +39,7 @@ def cw_get(endpoint, params=None):
     headers = get_auth_header()
     all_results = []
     page = 1
-    page_size = 1000
-
+    page_size = 25
     if params is None:
         params = {}
 
@@ -48,7 +47,7 @@ def cw_get(endpoint, params=None):
 
     while True:
         paged_params = {**params, "page": page, "pageSize": page_size}
-        response = session.get(url, headers=headers, params=paged_params, timeout=60)
+        response = session.get(url, headers=headers, params=paged_params, timeout=90)
         response.raise_for_status()
         data = response.json()
         if not data:
@@ -85,7 +84,7 @@ def stale_tickets():
             if last_updated:
                 try:
                     lu = datetime.fromisoformat(last_updated.replace("Z", "+00:00"))
-                    hours_stale = round((datetime.now(timezone.utc) - lu).total_seconds() / 3600, 1)
+                    hours_stale = round((datetime.now(timezone.utc) - lu).total_seconds() / 30, 1)
                 except:
                     pass
 
