@@ -116,10 +116,6 @@ HTML = r"""<!DOCTYPE html>
   .countdown-ring .bg { fill: none; stroke: #333; stroke-width: 2.5; }
   .countdown-ring .progress { fill: none; stroke: var(--good); stroke-width: 2.5; stroke-linecap: round; transition: stroke-dashoffset 1s linear; }
   .countdown-label { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 8px; color: var(--good); font-weight: 700; }
-  .refresh-picker { display: flex; gap: 4px; align-items: center; }
-  .refresh-opt { background: #1a1a1a; border: 1px solid #333; color: var(--text-dim); font-size: .7rem; font-weight: 600; padding: 4px 9px; border-radius: 4px; cursor: pointer; transition: all .2s; font-family: inherit; letter-spacing: .5px; }
-  .refresh-opt:hover { border-color: var(--good); color: var(--good); }
-  .refresh-opt.active { background: rgba(76,217,100,.15); border-color: var(--good); color: var(--good); }
   .config-warning { background: rgba(255,59,48,0.08); border-left: 4px solid var(--crit); padding: 16px 24px; margin: 20px 24px; border-radius: 0 8px 8px 0; display: none; }
   .config-warning.visible { display: block; }
   .config-warning h3 { color: var(--crit); font-size: .9rem; margin-bottom: 8px; }
@@ -129,9 +125,10 @@ HTML = r"""<!DOCTYPE html>
   .section-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
   .section-title { font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: var(--text-dim); }
   .count-pill { font-size: .7rem; font-weight: 700; padding: 2px 9px; border-radius: 20px; background: var(--crit); color: white; }
-  .count-pill.green { background: var(--good); color: #000; }
   .section-gap { margin-bottom: 40px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 20px; }
+  
+  /* GRID: align-items: start prevents empty stretching when one card expands */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 20px; align-items: start; }
   
   /* ── CARDS ── */
   .card { padding: 20px; border-radius: 12px; background: var(--card-bg); border-left: 10px solid; transition: 0.3s ease-in-out; }
@@ -312,7 +309,7 @@ async function loadStaleTickets() {
     }
     const ownersSorted = Object.entries(byOwner).sort(([,a],[,b]) => b.length - a.length);
     
-    // Generate standard owner cards (Now Expandable!)
+    // Generate standard owner cards (Now safely Expandable)
     const ownerCards = ownersSorted.map(([owner, tickets]) => {
       const cls = ownerCardClass(tickets.length);
       const critCount = tickets.filter(t => (t.hoursStale||0) >= 48).length;
@@ -342,7 +339,7 @@ async function loadStaleTickets() {
       </div>`;
     }).join('');
 
-    // Find owner with most tickets for the sidebar (Now Expandable!)
+    // Find owner with most tickets for the sidebar (Reverted to pure summary card!)
     const topOwner = ownersSorted[0];
     const topOwnerHTML = topOwner ? (() => {
       const [owner, tickets] = topOwner;
@@ -354,28 +351,17 @@ async function loadStaleTickets() {
         warnCount > 0 ? `<span class="sev-badge warn">${warnCount} 24h+</span>` : ''
       ].filter(Boolean).join('');
       
-      const issueHTML = tickets.map(t => {
-        const sc = sevClass(t.hoursStale||0);
-        const h = t.hoursStale !== null ? t.hoursStale : '?';
-        const url = `https://${window._cwSite||'eu.myconnectwise.net'}/v4_6_release/services/system_io/Service/fv_sr100_request.rails?service_recid=${t.id}`;
-        return `<div class="issue-item ${sc}" style="margin-bottom:10px">
-          <span class="issue-summary">#${t.id} — ${t.summary||'(no summary)'}<span class="stale-hours">${h}h</span></span>
-          <span class="instruction"><a href="${url}" target="_blank">${t.company||''} · ${t.board||''} · ${t.status||''} · ${fmtDate(t.lastUpdated)}</a></span>
-        </div>`;
-      }).join('');
-
-      return `<div class="card ${cls} expandable-card" onclick="toggleTickets(event, this)" style="min-height:100%;height:auto;display:flex;flex-direction:column;justify-content:space-between;">
+      return `<div class="card ${cls}" style="height:100%;display:flex;flex-direction:column;justify-content:space-between;">
         <div>
           <div class="oldest-label" style="margin-bottom:8px">🏆 MOST TICKETS</div>
-          <div class="cust-name" style="font-size:1.3rem">${owner} <span class="expand-icon">▼</span></div>
+          <div class="cust-name" style="font-size:1.3rem">${owner}</div>
         </div>
         <div class="owner-total ${cls.toLowerCase()}" style="font-size:4rem;text-align:center;padding:10px 0">${tickets.length}</div>
         <div class="sev-badges">${badges}</div>
-        <div class="ticket-list">${issueHTML}</div>
       </div>`;
     })() : '';
 
-    // Unassigned card (Now Expandable!)
+    // Unassigned card (Reverted to pure summary card!)
     const unassignedTickets = data.tickets.filter(t => !t.owner || t.owner === 'Unassigned');
     const unassignedHTML = (() => {
       const count = unassignedTickets.length;
@@ -387,25 +373,14 @@ async function loadStaleTickets() {
         critCount > 0 ? `<span class="sev-badge crit">${critCount} 48h+</span>` : '',
         warnCount > 0 ? `<span class="sev-badge warn">${warnCount} 24h+</span>` : ''
       ].filter(Boolean).join('');
-      
-      const issueHTML = unassignedTickets.map(t => {
-        const sc = sevClass(t.hoursStale||0);
-        const h = t.hoursStale !== null ? t.hoursStale : '?';
-        const url = `https://${window._cwSite||'eu.myconnectwise.net'}/v4_6_release/services/system_io/Service/fv_sr100_request.rails?service_recid=${t.id}`;
-        return `<div class="issue-item ${sc}" style="margin-bottom:10px">
-          <span class="issue-summary">#${t.id} — ${t.summary||'(no summary)'}<span class="stale-hours">${h}h</span></span>
-          <span class="instruction"><a href="${url}" target="_blank">${t.company||''} · ${t.board||''} · ${t.status||''} · ${fmtDate(t.lastUpdated)}</a></span>
-        </div>`;
-      }).join('');
 
-      return `<div class="card ${cls} expandable-card" onclick="toggleTickets(event, this)" style="min-height:100%;height:auto;display:flex;flex-direction:column;justify-content:space-between;">
+      return `<div class="card ${cls}" style="height:100%;display:flex;flex-direction:column;justify-content:space-between;">
         <div>
           <div class="oldest-label" style="margin-bottom:8px;color:var(--text-dim)">⚠ UNASSIGNED</div>
-          <div class="cust-name" style="font-size:1.3rem">Unassigned <span class="expand-icon">▼</span></div>
+          <div class="cust-name" style="font-size:1.3rem">Unassigned</div>
         </div>
         <div class="owner-total ${cls.toLowerCase()}" style="font-size:4rem;text-align:center;padding:10px 0">${count}</div>
         <div class="sev-badges">${badges}</div>
-        <div class="ticket-list">${issueHTML}</div>
       </div>`;
     })();
 
