@@ -28,7 +28,6 @@ THRESH_AMBER = int(os.environ.get("CW_THRESH_AMBER", "15"))
 VERIFY_SSL     = os.environ.get("CW_VERIFY_SSL", "true").lower() != "false"
 
 # Statuses to exclude from stale tickets view — driven by CW_EXCLUDE_STATUSES env var
-# Defaults include common closed statuses; extend via docker-compose environment
 _raw_exclude = os.environ.get("CW_EXCLUDE_STATUSES", "Closed,Resolved,Cancelled,Completed,Complete,Closed - Resolved,Closed - No Resolution")
 CLOSED_STATUSES = {s.strip().lower() for s in _raw_exclude.split(",") if s.strip()}
 
@@ -53,7 +52,7 @@ def cw_get(endpoint, params=None):
     headers = get_auth_header()
     all_results = []
     page = 1
-    page_size = 100  # smaller pages = faster, less timeout risk
+    page_size = 100 
 
     if params is None:
         params = {}
@@ -133,11 +132,20 @@ HTML = r"""<!DOCTYPE html>
   .count-pill.green { background: var(--good); color: #000; }
   .section-gap { margin-bottom: 40px; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 20px; }
+  
+  /* ── CARDS ── */
   .card { padding: 20px; border-radius: 12px; background: var(--card-bg); border-left: 10px solid; transition: 0.3s ease-in-out; }
   .card.Red   { border-color: var(--crit); }
   .card.Amber { border-color: var(--warn); }
   .card.Green { border-color: var(--good); opacity: 0.6; }
   .card:hover { opacity: 1 !important; }
+  
+  /* ── EXPANDABLE UI ── */
+  .expandable-card { cursor: pointer; user-select: none; }
+  .expandable-card:hover { filter: brightness(1.1); }
+  .ticket-list { display: none; margin-top: 15px; border-top: 1px solid var(--border); padding-top: 15px; cursor: default; }
+  .expand-icon { font-size: 0.8em; color: var(--text-dim); display: inline-block; margin-left: 8px; transition: transform 0.2s ease; }
+  
   .cust-name { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .status-meta { font-size: .75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px; }
   .issue-item { margin-bottom: 8px; padding: 10px 12px; border-radius: 4px; border-left: 4px solid; }
@@ -153,15 +161,7 @@ HTML = r"""<!DOCTYPE html>
   .sev-critical .stale-hours { background: rgba(255,59,48,.2); color: var(--crit); }
   .sev-warning  .stale-hours { background: rgba(255,204,0,.15); color: var(--warn); }
   .sev-stale    .stale-hours { background: rgba(68,68,68,.3); color: #666; }
-  .tech-card { padding: 20px; border-radius: 12px; background: var(--card-bg); border-left: 10px solid var(--good); }
-  .tech-total { font-size: 2rem; font-weight: 700; color: var(--good); line-height: 1; margin-bottom: 2px; }
-  .tech-label { font-size: .7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px; }
-  .bar-chart { display: flex; align-items: flex-end; gap: 5px; height: 48px; }
-  .bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; gap: 4px; }
-  .bar-inner { flex: 1; width: 100%; display: flex; align-items: flex-end; }
-  .bar { width: 100%; background: var(--good); border-radius: 2px 2px 0 0; min-height: 2px; opacity: .7; transition: opacity .2s; cursor: default; }
-  .bar:hover { opacity: 1; }
-  .bar-label { font-size: 9px; color: var(--text-muted); text-align: center; white-space: nowrap; }
+  
   .loading { display: flex; align-items: center; justify-content: center; padding: 60px; color: var(--text-dim); gap: 12px; font-size: .8rem; }
   .spinner { width: 18px; height: 18px; border: 2px solid #333; border-top-color: var(--good); border-radius: 50%; animation: spin .8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -197,7 +197,7 @@ HTML = r"""<!DOCTYPE html>
           <circle class="bg" cx="13" cy="13" r="10"/>
           <circle class="progress" id="countdown-circle" cx="13" cy="13" r="10" stroke-dasharray="62.8" stroke-dashoffset="0"/>
         </svg>
-        <span class="countdown-label" id="countdown-text">5m</span>
+        <span class="countdown-label" id="countdown-text">...</span>
       </div>
     </div>
   </div>
@@ -217,27 +217,15 @@ HTML = r"""<!DOCTYPE html>
     </div>
     <div id="stale-container"><div class="loading"><div class="spinner"></div>Loading…</div></div>
   </div>
-
-
 </main>
 
 <script>
-const REFRESH_OPTIONS = [60, 120, 300, 600, 900];
-let REFRESH_INTERVAL = parseInt(localStorage.getItem('cw_refresh') || '{{ refresh_interval }}');
+let REFRESH_INTERVAL = parseInt('{{ refresh_interval }}') || 300;
 const THRESH_RED   = {{ thresh_red }};
 const THRESH_AMBER = {{ thresh_amber }};
 let countdown = REFRESH_INTERVAL;
 const circle = document.getElementById('countdown-circle');
 const circumference = 62.8;
-
-function setRefreshInterval(seconds) {
-  REFRESH_INTERVAL = seconds;
-  countdown = seconds;
-  localStorage.setItem('cw_refresh', seconds);
-  document.querySelectorAll('.refresh-opt').forEach(b => {
-    b.classList.toggle('active', parseInt(b.dataset.val) === seconds);
-  });
-}
 
 setInterval(() => {
   countdown--;
@@ -250,7 +238,7 @@ setInterval(() => {
 
 function fmtDate(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('en-GB', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+  return new Date(iso).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
 }
 
 function sevClass(hours) {
@@ -271,6 +259,22 @@ function ownerCardClass(count) {
   return 'Green';
 }
 
+// ── Toggle Expandable Tickets ─────────────────────────────────────────────────
+function toggleTickets(event, card) {
+  if (event.target.closest('a')) return; // Allow clicking links inside
+  const list = card.querySelector('.ticket-list');
+  if (!list) return;
+  const icon = card.querySelector('.expand-icon');
+  
+  if (list.style.display === 'none' || !list.style.display) {
+    list.style.display = 'block';
+    if(icon) icon.style.transform = 'rotate(180deg)';
+  } else {
+    list.style.display = 'none';
+    if(icon) icon.style.transform = 'rotate(0deg)';
+  }
+}
+
 async function loadStaleTickets() {
   const el = document.getElementById('stale-container');
   const pill = document.getElementById('stale-count-pill');
@@ -287,7 +291,7 @@ async function loadStaleTickets() {
     // Sort all tickets by hoursStale descending
     const allSorted = [...data.tickets].sort((a,b) => (b.hoursStale||0) - (a.hoursStale||0));
 
-    // Top 5 oldest tickets
+    // Top 5 oldest tickets (Unchanged layout)
     const top5 = allSorted.slice(0, 5);
     const top5HTML = top5.map(t => {
       const sc = sevClass(t.hoursStale||0);
@@ -299,7 +303,7 @@ async function loadStaleTickets() {
       </div>`;
     }).join('');
 
-    // Group remaining by owner, show count only
+    // Group remaining by owner
     const byOwner = {};
     for (const t of data.tickets) {
       const owner = t.owner || 'Unassigned';
@@ -307,26 +311,38 @@ async function loadStaleTickets() {
       byOwner[owner].push(t);
     }
     const ownersSorted = Object.entries(byOwner).sort(([,a],[,b]) => b.length - a.length);
+    
+    // Generate standard owner cards (Now Expandable!)
     const ownerCards = ownersSorted.map(([owner, tickets]) => {
-      const worst = Math.max(...tickets.map(t => t.hoursStale||0));
       const cls = ownerCardClass(tickets.length);
       const critCount = tickets.filter(t => (t.hoursStale||0) >= 48).length;
       const warnCount = tickets.filter(t => (t.hoursStale||0) >= 24 && (t.hoursStale||0) < 48).length;
-      const staleCount = tickets.filter(t => (t.hoursStale||0) < 24).length;
       const badges = [
         critCount > 0 ? `<span class="sev-badge crit">${critCount} 48h+</span>` : '',
         warnCount > 0 ? `<span class="sev-badge warn">${warnCount} 24h+</span>` : ''
       ].filter(Boolean).join('');
-      return `<div class="card ${cls}">
+      
+      const issueHTML = tickets.map(t => {
+        const sc = sevClass(t.hoursStale||0);
+        const h = t.hoursStale !== null ? t.hoursStale : '?';
+        const url = `https://${window._cwSite||'eu.myconnectwise.net'}/v4_6_release/services/system_io/Service/fv_sr100_request.rails?service_recid=${t.id}`;
+        return `<div class="issue-item ${sc}" style="margin-bottom:10px">
+          <span class="issue-summary">#${t.id} — ${t.summary||'(no summary)'}<span class="stale-hours">${h}h</span></span>
+          <span class="instruction"><a href="${url}" target="_blank">${t.company||''} · ${t.board||''} · ${t.status||''} · ${fmtDate(t.lastUpdated)}</a></span>
+        </div>`;
+      }).join('');
+
+      return `<div class="card ${cls} expandable-card" onclick="toggleTickets(event, this)">
         <div class="owner-ticket-row">
-          <div class="cust-name">${owner}</div>
+          <div class="cust-name">${owner} <span class="expand-icon">▼</span></div>
           <div class="owner-total ${cls.toLowerCase()}">${tickets.length}</div>
         </div>
         <div class="sev-badges">${badges}</div>
+        <div class="ticket-list">${issueHTML}</div>
       </div>`;
     }).join('');
 
-    // Find owner with most tickets for the sidebar
+    // Find owner with most tickets for the sidebar (Now Expandable!)
     const topOwner = ownersSorted[0];
     const topOwnerHTML = topOwner ? (() => {
       const [owner, tickets] = topOwner;
@@ -337,17 +353,29 @@ async function loadStaleTickets() {
         critCount > 0 ? `<span class="sev-badge crit">${critCount} 48h+</span>` : '',
         warnCount > 0 ? `<span class="sev-badge warn">${warnCount} 24h+</span>` : ''
       ].filter(Boolean).join('');
-      return `<div class="card ${cls}" style="height:100%;display:flex;flex-direction:column;justify-content:space-between;">
+      
+      const issueHTML = tickets.map(t => {
+        const sc = sevClass(t.hoursStale||0);
+        const h = t.hoursStale !== null ? t.hoursStale : '?';
+        const url = `https://${window._cwSite||'eu.myconnectwise.net'}/v4_6_release/services/system_io/Service/fv_sr100_request.rails?service_recid=${t.id}`;
+        return `<div class="issue-item ${sc}" style="margin-bottom:10px">
+          <span class="issue-summary">#${t.id} — ${t.summary||'(no summary)'}<span class="stale-hours">${h}h</span></span>
+          <span class="instruction"><a href="${url}" target="_blank">${t.company||''} · ${t.board||''} · ${t.status||''} · ${fmtDate(t.lastUpdated)}</a></span>
+        </div>`;
+      }).join('');
+
+      return `<div class="card ${cls} expandable-card" onclick="toggleTickets(event, this)" style="min-height:100%;height:auto;display:flex;flex-direction:column;justify-content:space-between;">
         <div>
           <div class="oldest-label" style="margin-bottom:8px">🏆 MOST TICKETS</div>
-          <div class="cust-name" style="font-size:1.3rem">${owner}</div>
+          <div class="cust-name" style="font-size:1.3rem">${owner} <span class="expand-icon">▼</span></div>
         </div>
         <div class="owner-total ${cls.toLowerCase()}" style="font-size:4rem;text-align:center;padding:10px 0">${tickets.length}</div>
         <div class="sev-badges">${badges}</div>
+        <div class="ticket-list">${issueHTML}</div>
       </div>`;
     })() : '';
 
-    // Unassigned card
+    // Unassigned card (Now Expandable!)
     const unassignedTickets = data.tickets.filter(t => !t.owner || t.owner === 'Unassigned');
     const unassignedHTML = (() => {
       const count = unassignedTickets.length;
@@ -359,13 +387,25 @@ async function loadStaleTickets() {
         critCount > 0 ? `<span class="sev-badge crit">${critCount} 48h+</span>` : '',
         warnCount > 0 ? `<span class="sev-badge warn">${warnCount} 24h+</span>` : ''
       ].filter(Boolean).join('');
-      return `<div class="card ${cls}" style="height:100%;display:flex;flex-direction:column;justify-content:space-between;">
+      
+      const issueHTML = unassignedTickets.map(t => {
+        const sc = sevClass(t.hoursStale||0);
+        const h = t.hoursStale !== null ? t.hoursStale : '?';
+        const url = `https://${window._cwSite||'eu.myconnectwise.net'}/v4_6_release/services/system_io/Service/fv_sr100_request.rails?service_recid=${t.id}`;
+        return `<div class="issue-item ${sc}" style="margin-bottom:10px">
+          <span class="issue-summary">#${t.id} — ${t.summary||'(no summary)'}<span class="stale-hours">${h}h</span></span>
+          <span class="instruction"><a href="${url}" target="_blank">${t.company||''} · ${t.board||''} · ${t.status||''} · ${fmtDate(t.lastUpdated)}</a></span>
+        </div>`;
+      }).join('');
+
+      return `<div class="card ${cls} expandable-card" onclick="toggleTickets(event, this)" style="min-height:100%;height:auto;display:flex;flex-direction:column;justify-content:space-between;">
         <div>
           <div class="oldest-label" style="margin-bottom:8px;color:var(--text-dim)">⚠ UNASSIGNED</div>
-          <div class="cust-name" style="font-size:1.3rem">Unassigned</div>
+          <div class="cust-name" style="font-size:1.3rem">Unassigned <span class="expand-icon">▼</span></div>
         </div>
         <div class="owner-total ${cls.toLowerCase()}" style="font-size:4rem;text-align:center;padding:10px 0">${count}</div>
         <div class="sev-badges">${badges}</div>
+        <div class="ticket-list">${issueHTML}</div>
       </div>`;
     })();
 
@@ -403,8 +443,6 @@ function refreshAll() {
 
 checkConfig();
 refreshAll();
-// Init button state from saved preference
-setRefreshInterval(REFRESH_INTERVAL);
 </script>
 </body>
 </html>"""
