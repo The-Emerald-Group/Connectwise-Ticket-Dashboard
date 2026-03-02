@@ -218,14 +218,7 @@ HTML = r"""<!DOCTYPE html>
     <div id="stale-container"><div class="loading"><div class="spinner"></div>Loading…</div></div>
   </div>
 
-  <div class="section-gap">
-    <div class="section-header">
-      <span class="section-title">Closed by Technician</span>
-      <span class="count-pill green" id="closed-count-pill">—</span>
-      <span style="font-size:.72rem;color:var(--text-muted)">last 7 days</span>
-    </div>
-    <div id="closed-container"><div class="loading"><div class="spinner"></div>Loading…</div></div>
-  </div>
+
 </main>
 
 <script>
@@ -394,41 +387,6 @@ async function loadStaleTickets() {
   }
 }
 
-async function loadClosedByUser() {
-  const el = document.getElementById('closed-container');
-  const pill = document.getElementById('closed-count-pill');
-  try {
-    const res = await fetch('/api/closed-by-user');
-    const data = await res.json();
-    if (data.error) { el.innerHTML = `<div class="error-msg">⚠ ${data.error}</div>`; return; }
-    if (!data.users||!data.users.length) {
-      el.innerHTML = `<div class="empty-state"><p>No closed tickets in the last 7 days</p></div>`;
-      return;
-    }
-    pill.textContent = data.users.reduce((s,u)=>s+u.total,0);
-    const maxVal = Math.max(...data.users.flatMap(u=>u.daily),1);
-    const shortDates = data.dates.map(d => new Date(d+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short'}));
-    const cards = data.users.map(user => {
-      const bars = user.daily.map((count,i) => {
-        const pct = count===0?0:Math.max((count/maxVal)*100,4);
-        return `<div class="bar-wrap">
-          <div class="bar-inner"><div class="bar" style="height:${pct}%" title="${shortDates[i]}: ${count} closed"></div></div>
-          <div class="bar-label">${shortDates[i]}</div>
-        </div>`;
-      }).join('');
-      return `<div class="tech-card">
-        <div class="cust-name">${user.name}</div>
-        <div class="tech-total">${user.total}</div>
-        <div class="tech-label">tickets closed</div>
-        <div class="bar-chart">${bars}</div>
-      </div>`;
-    }).join('');
-    el.innerHTML = `<div class="grid">${cards}</div>`;
-  } catch(e) {
-    el.innerHTML = `<div class="error-msg">⚠ ${e.message}</div>`;
-  }
-}
-
 async function checkConfig() {
   try {
     const data = await fetch('/api/config-check').then(r=>r.json());
@@ -441,7 +399,6 @@ function refreshAll() {
   const now = new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
   document.getElementById('last-updated-label').textContent = `Updated ${now}`;
   loadStaleTickets();
-  loadClosedByUser();
 }
 
 checkConfig();
@@ -505,49 +462,6 @@ def stale_tickets():
         return jsonify({"tickets": result, "count": len(result), "asOf": datetime.now(timezone.utc).isoformat()})
     except Exception as e:
         return jsonify({"error": str(e), "tickets": [], "count": 0}), 500
-
-@app.route("/api/closed-by-user")
-def closed_by_user():
-    try:
-        today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-        days_back = 7
-        start_date = today - timedelta(days=days_back - 1)
-        start_str = start_date.strftime("%Y-%m-%dT00:00:00Z")
-        end_str = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-        params = {
-            "conditions": f"closedFlag = true and lastUpdated >= [{start_str}] and lastUpdated <= [{end_str}]",
-            "fields": "id,owner,lastUpdated,closedBy",
-            "orderBy": "lastUpdated desc"
-        }
-
-        tickets = cw_get("/service/tickets", params)
-
-        data = defaultdict(lambda: defaultdict(int))
-        for t in tickets:
-            lu = t.get("lastUpdated", "")
-            owner_info = t.get("owner")
-            owner = owner_info.get("name", "Unassigned") if isinstance(owner_info, dict) else "Unassigned"
-            if lu:
-                try:
-                    dt = datetime.fromisoformat(lu.replace("Z", "+00:00"))
-                    data[owner][dt.strftime("%Y-%m-%d")] += 1
-                except:
-                    pass
-
-        dates = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(days_back - 1, -1, -1)]
-        result = {"dates": dates, "users": []}
-
-        for user in sorted(data.keys()):
-            daily = [data[user].get(d, 0) for d in dates]
-            result["users"].append({"name": user, "daily": daily, "total": sum(daily)})
-
-        result["users"].sort(key=lambda x: x["total"], reverse=True)
-        result["asOf"] = datetime.now(timezone.utc).isoformat()
-
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({"error": str(e), "dates": [], "users": []}), 500
 
 @app.route("/api/config-check")
 def config_check():
