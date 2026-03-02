@@ -244,16 +244,14 @@ async function loadStaleTickets() {
       el.innerHTML = `<div class="empty-state"><div class="big-check">✅</div><p>All tickets up to date</p></div>`;
       return;
     }
-    const byCompany = {};
+    const byOwner = {};
     for (const t of data.tickets) {
-      const co = t.company || 'Unknown';
-      if (!byCompany[co]) byCompany[co] = [];
-      byCompany[co].push(t);
+      const owner = t.owner || 'Unassigned';
+      if (!byOwner[owner]) byOwner[owner] = [];
+      byOwner[owner].push(t);
     }
-    const sorted = Object.entries(byCompany).sort(([,a],[,b]) =>
-      Math.max(...b.map(t=>t.hoursStale||0)) - Math.max(...a.map(t=>t.hoursStale||0))
-    );
-    const cards = sorted.map(([company, tickets]) => {
+    const sorted = Object.entries(byOwner).sort(([a],[b]) => a.localeCompare(b));
+    const cards = sorted.map(([owner, tickets]) => {
       const cls = cardClass(tickets);
       const issues = tickets.map(t => {
         const sc = sevClass(t.hoursStale||0);
@@ -261,11 +259,11 @@ async function loadStaleTickets() {
         const url = `https://${window._cwSite||'eu.myconnectwise.net'}/v4_6_release/services/system_io/Service/fv_sr100_request.rails?service_recid=${t.id}`;
         return `<div class="issue-item ${sc}">
           <span class="issue-summary">#${t.id} — ${t.summary||'(no summary)'}<span class="stale-hours">${h}h</span></span>
-          <span class="instruction"><a href="${url}" target="_blank">${t.owner||'Unassigned'} · ${t.status||''} · ${fmtDate(t.lastUpdated)}</a></span>
+          <span class="instruction"><a href="${url}" target="_blank">${t.company||''} · ${t.status||''} · ${fmtDate(t.lastUpdated)}</a></span>
         </div>`;
       }).join('');
       return `<div class="card ${cls}">
-        <div class="cust-name">${company}</div>
+        <div class="cust-name">${owner}</div>
         <div class="status-meta">${tickets.length} stale ticket${tickets.length>1?'s':''}</div>
         ${issues}
       </div>`;
@@ -343,7 +341,7 @@ def stale_tickets():
         cutoff_str = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
 
         params = {
-            "conditions": f"closedFlag = false and lastUpdated < [{cutoff_str}]",
+            "conditions": f"closedFlag = false and parentTicketId = null and lastUpdated < [{cutoff_str}]",
             "fields": "id,summary,status,owner,board,priority,lastUpdated,dateEntered,company",
             "orderBy": "lastUpdated asc"
         }
