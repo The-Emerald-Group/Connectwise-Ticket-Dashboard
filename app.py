@@ -160,6 +160,14 @@ HTML = r"""<!DOCTYPE html>
   .error-msg { padding: 30px; color: var(--crit); font-size: .8rem; }
   .empty-state { text-align: center; padding: 48px 24px; }
   .empty-state .big-check { font-size: 2.5rem; margin-bottom: 8px; }
+  .oldest-section { padding: 20px 20px 0 20px; }
+  .oldest-label { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: var(--crit); margin-bottom: 12px; }
+  .section-divider { border-top: 1px solid var(--border); margin: 20px 0 0 0; }
+  .sev-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+  .sev-badge { font-size: .7rem; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
+  .sev-badge.crit { background: rgba(255,59,48,.2); color: var(--crit); border: 1px solid rgba(255,59,48,.3); }
+  .sev-badge.warn { background: rgba(255,204,0,.15); color: var(--warn); border: 1px solid rgba(255,204,0,.25); }
+  .sev-badge.stale { background: rgba(68,68,68,.3); color: #888; border: 1px solid #444; }
   .empty-state p { color: var(--text-dim); font-size: .8rem; text-transform: uppercase; letter-spacing: 1px; }
 </style>
 </head>
@@ -267,31 +275,55 @@ async function loadStaleTickets() {
       el.innerHTML = `<div class="empty-state"><div class="big-check">✅</div><p>All tickets up to date</p></div>`;
       return;
     }
+
+    // Sort all tickets by hoursStale descending
+    const allSorted = [...data.tickets].sort((a,b) => (b.hoursStale||0) - (a.hoursStale||0));
+
+    // Top 5 oldest tickets
+    const top5 = allSorted.slice(0, 5);
+    const top5HTML = top5.map(t => {
+      const sc = sevClass(t.hoursStale||0);
+      const h = t.hoursStale !== null ? t.hoursStale : '?';
+      const url = `https://${window._cwSite||'eu.myconnectwise.net'}/v4_6_release/services/system_io/Service/fv_sr100_request.rails?service_recid=${t.id}`;
+      return `<div class="issue-item ${sc}" style="margin-bottom:10px">
+        <span class="issue-summary">#${t.id} — ${t.summary||'(no summary)'}<span class="stale-hours">${h}h</span></span>
+        <span class="instruction"><a href="${url}" target="_blank">${t.owner||'Unassigned'} · ${t.company||''} · ${t.board||''} · ${t.status||''} · ${fmtDate(t.lastUpdated)}</a></span>
+      </div>`;
+    }).join('');
+
+    // Group remaining by owner, show count only
     const byOwner = {};
     for (const t of data.tickets) {
       const owner = t.owner || 'Unassigned';
       if (!byOwner[owner]) byOwner[owner] = [];
       byOwner[owner].push(t);
     }
-    const sorted = Object.entries(byOwner).sort(([a],[b]) => a.localeCompare(b));
-    const cards = sorted.map(([owner, tickets]) => {
+    const ownersSorted = Object.entries(byOwner).sort(([a],[b]) => a.localeCompare(b));
+    const ownerCards = ownersSorted.map(([owner, tickets]) => {
+      const worst = Math.max(...tickets.map(t => t.hoursStale||0));
       const cls = cardClass(tickets);
-      const issues = tickets.map(t => {
-        const sc = sevClass(t.hoursStale||0);
-        const h = t.hoursStale !== null ? t.hoursStale : '?';
-        const url = `https://${window._cwSite||'eu.myconnectwise.net'}/v4_6_release/services/system_io/Service/fv_sr100_request.rails?service_recid=${t.id}`;
-        return `<div class="issue-item ${sc}">
-          <span class="issue-summary">#${t.id} — ${t.summary||'(no summary)'}<span class="stale-hours">${h}h</span></span>
-          <span class="instruction"><a href="${url}" target="_blank">${t.company||''} · ${t.board||''} · ${t.status||''} · ${fmtDate(t.lastUpdated)}</a></span>
-        </div>`;
-      }).join('');
+      const critCount = tickets.filter(t => (t.hoursStale||0) >= 48).length;
+      const warnCount = tickets.filter(t => (t.hoursStale||0) >= 24 && (t.hoursStale||0) < 48).length;
+      const staleCount = tickets.filter(t => (t.hoursStale||0) < 24).length;
+      const badges = [
+        critCount > 0 ? `<span class="sev-badge crit">${critCount} 48h+</span>` : '',
+        warnCount > 0 ? `<span class="sev-badge warn">${warnCount} 24h+</span>` : '',
+        staleCount > 0 ? `<span class="sev-badge stale">${staleCount} 8h+</span>` : ''
+      ].filter(Boolean).join('');
       return `<div class="card ${cls}">
         <div class="cust-name">${owner}</div>
-        <div class="status-meta">${tickets.length} stale ticket${tickets.length>1?'s':''}</div>
-        ${issues}
+        <div class="status-meta" style="margin-bottom:10px">${tickets.length} stale ticket${tickets.length>1?'s':''}</div>
+        <div class="sev-badges">${badges}</div>
       </div>`;
     }).join('');
-    el.innerHTML = `<div class="grid">${cards}</div>`;
+
+    el.innerHTML = `
+      <div class="oldest-section">
+        <div class="oldest-label">🔥 TOP 5 OLDEST</div>
+        ${top5HTML}
+      </div>
+      <div class="section-divider"></div>
+      <div class="grid" style="padding:20px">${ownerCards}</div>`;
   } catch(e) {
     el.innerHTML = `<div class="error-msg">⚠ ${e.message}</div>`;
   }
