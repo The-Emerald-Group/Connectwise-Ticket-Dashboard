@@ -3,16 +3,27 @@ import requests
 import base64
 from flask import Flask, jsonify, render_template
 from datetime import datetime, timedelta, timezone
-import pytz
+from collections import defaultdict
 
 app = Flask(__name__)
 
 # ConnectWise API Configuration (from environment variables)
-CW_SITE = os.environ.get("CW_SITE", "na.myconnectwise.net")
-CW_COMPANY = os.environ.get("CW_COMPANY", "")
+CW_SITE       = os.environ.get("CW_SITE", "na.myconnectwise.net")
+CW_COMPANY    = os.environ.get("CW_COMPANY", "")
 CW_PUBLIC_KEY = os.environ.get("CW_PUBLIC_KEY", "")
-CW_PRIVATE_KEY = os.environ.get("CW_PRIVATE_KEY", "")
-CW_CLIENT_ID = os.environ.get("CW_CLIENT_ID", "")
+CW_PRIVATE_KEY= os.environ.get("CW_PRIVATE_KEY", "")
+CW_CLIENT_ID  = os.environ.get("CW_CLIENT_ID", "")
+
+# Optional proxy + SSL settings
+HTTPS_PROXY   = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or ""
+VERIFY_SSL    = os.environ.get("CW_VERIFY_SSL", "true").lower() != "false"
+
+def get_session():
+    session = requests.Session()
+    if HTTPS_PROXY:
+        session.proxies = {"https": HTTPS_PROXY, "http": HTTPS_PROXY}
+    session.verify = VERIFY_SSL
+    return session
 
 def get_auth_header():
     creds = f"{CW_COMPANY}+{CW_PUBLIC_KEY}:{CW_PRIVATE_KEY}"
@@ -33,9 +44,11 @@ def cw_get(endpoint, params=None):
     if params is None:
         params = {}
 
+    session = get_session()
+
     while True:
         paged_params = {**params, "page": page, "pageSize": page_size}
-        response = requests.get(url, headers=headers, params=paged_params, timeout=30)
+        response = session.get(url, headers=headers, params=paged_params, timeout=60)
         response.raise_for_status()
         data = response.json()
         if not data:
@@ -109,8 +122,6 @@ def closed_by_user():
 
         tickets = cw_get("/service/tickets", params)
 
-        # Build daily breakdown per user
-        from collections import defaultdict
         data = defaultdict(lambda: defaultdict(int))
 
         for t in tickets:
@@ -125,23 +136,14 @@ def closed_by_user():
                 except:
                     pass
 
-        # Build date range labels
         dates = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(days_back - 1, -1, -1)]
-
         users = sorted(data.keys())
-        result = {
-            "dates": dates,
-            "users": []
-        }
+        result = {"dates": dates, "users": []}
 
         for user in users:
             daily = [data[user].get(d, 0) for d in dates]
             total = sum(daily)
-            result["users"].append({
-                "name": user,
-                "daily": daily,
-                "total": total
-            })
+            result["users"].append({"name": user, "daily": daily, "total": total})
 
         result["users"].sort(key=lambda x: x["total"], reverse=True)
         result["asOf"] = datetime.now(timezone.utc).isoformat()
@@ -159,7 +161,9 @@ def config_check():
         "company": CW_COMPANY if CW_COMPANY else "(not set)",
         "hasPublicKey": bool(CW_PUBLIC_KEY),
         "hasPrivateKey": bool(CW_PRIVATE_KEY),
-        "hasClientId": bool(CW_CLIENT_ID)
+        "hasClientId": bool(CW_CLIENT_ID),
+        "proxy": HTTPS_PROXY if HTTPS_PROXY else "none",
+        "sslVerify": VERIFY_SSL
     })
 
 if __name__ == "__main__":
