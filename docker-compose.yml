@@ -12,7 +12,14 @@ services:
       - CW_PUBLIC_KEY=your_public_key_here
       - CW_PRIVATE_KEY=your_private_key_here
       - CW_CLIENT_ID=your_client_id_here
-      - CW_VERIFY_SSL=false
+
+      # ── SSL verification ───────────────────────────────────────────────────
+      # Set to false if using a self-signed certificate
+      - CW_VERIFY_SSL=true
+
+      # ── HTTPS proxy (optional) ─────────────────────────────────────────────
+      # Uncomment and set if your environment requires a proxy
+      # - HTTPS_PROXY=http://proxy.example.com:8080
 
       # ── Refresh interval (seconds) ─────────────────────────────────────────
       # 60=1min 120=2min 300=5min 600=10min 900=15min
@@ -20,11 +27,12 @@ services:
 
       # ── Excluded ticket statuses ───────────────────────────────────────────
       # Comma-separated, case-insensitive. Tickets with these statuses are hidden.
+      # Defaults (if not set): Closed,Resolved,Cancelled,Completed,Complete,Closed - Resolved,Closed - No Resolution
       - CW_EXCLUDE_STATUSES=Chased,Awaiting Delivery,On Hold,Completed,Closed,Resolved,Cancelled
 
       # ── Excluded ticket priorities ─────────────────────────────────────────
       # Comma-separated, case-insensitive. Tickets with these priorities are hidden.
-      # Example: - CW_EXCLUDE_PRIORITIES=Low,Planning
+      # Example: CW_EXCLUDE_PRIORITIES=Low,Planning
       - CW_EXCLUDE_PRIORITIES=
 
       # ── Owner card colour thresholds (ticket count) ────────────────────────
