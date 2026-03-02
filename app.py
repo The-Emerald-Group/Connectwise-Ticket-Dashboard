@@ -160,7 +160,9 @@ HTML = r"""<!DOCTYPE html>
   .error-msg { padding: 30px; color: var(--crit); font-size: .8rem; }
   .empty-state { text-align: center; padding: 48px 24px; }
   .empty-state .big-check { font-size: 2.5rem; margin-bottom: 8px; }
-  .oldest-section { padding: 20px 20px 0 20px; }
+  .top-row { display: flex; gap: 20px; padding: 20px 20px 0 20px; align-items: stretch; }
+  .oldest-section { flex: 1; min-width: 0; }
+  .top-owner-col { width: 220px; flex-shrink: 0; }
   .oldest-label { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: var(--crit); margin-bottom: 12px; }
   .section-divider { border-top: 1px solid var(--border); margin: 20px 0 0 0; }
   .sev-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
@@ -322,10 +324,34 @@ async function loadStaleTickets() {
       </div>`;
     }).join('');
 
+    // Find owner with most tickets for the sidebar
+    const topOwner = ownersSorted[0];
+    const topOwnerHTML = topOwner ? (() => {
+      const [owner, tickets] = topOwner;
+      const cls = cardClass(tickets);
+      const critCount = tickets.filter(t => (t.hoursStale||0) >= 48).length;
+      const warnCount = tickets.filter(t => (t.hoursStale||0) >= 24 && (t.hoursStale||0) < 48).length;
+      const badges = [
+        critCount > 0 ? `<span class="sev-badge crit">${critCount} 48h+</span>` : '',
+        warnCount > 0 ? `<span class="sev-badge warn">${warnCount} 24h+</span>` : ''
+      ].filter(Boolean).join('');
+      return `<div class="card ${cls}" style="height:100%;display:flex;flex-direction:column;justify-content:space-between;">
+        <div>
+          <div class="oldest-label" style="margin-bottom:8px">🏆 MOST TICKETS</div>
+          <div class="cust-name" style="font-size:1.3rem">${owner}</div>
+        </div>
+        <div class="owner-total ${cls.toLowerCase()}" style="font-size:4rem;text-align:center;padding:10px 0">${tickets.length}</div>
+        <div class="sev-badges">${badges}</div>
+      </div>`;
+    })() : '';
+
     el.innerHTML = `
-      <div class="oldest-section">
-        <div class="oldest-label">🔥 TOP 5 OLDEST</div>
-        ${top5HTML}
+      <div class="top-row">
+        <div class="oldest-section">
+          <div class="oldest-label">🔥 TOP 5 OLDEST</div>
+          ${top5HTML}
+        </div>
+        <div class="top-owner-col">${topOwnerHTML}</div>
       </div>
       <div class="section-divider"></div>
       <div class="grid" style="padding:20px">${ownerCards}</div>`;
