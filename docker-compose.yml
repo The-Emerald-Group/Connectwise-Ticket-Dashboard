@@ -16,6 +16,10 @@ services:
       - CW_CLIENT_ID=your_client_id_here
       - CW_VERIFY_SSL=false
 
+      # ── Refresh interval (seconds) ────────────────────────────────────────
+      # 60=1min 120=2min 300=5min 600=10min 900=15min
+      - CW_REFRESH_INTERVAL=300
+
       # ── Excluded ticket statuses ───────────────────────────────────────────
       # Comma-separated list of statuses to hide from the stale tickets view.
       # Case-insensitive. Add or remove as needed.
