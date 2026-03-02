@@ -18,11 +18,10 @@ CW_CLIENT_ID   = os.environ.get("CW_CLIENT_ID", "")
 HTTPS_PROXY    = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or ""
 VERIFY_SSL     = os.environ.get("CW_VERIFY_SSL", "true").lower() != "false"
 
-# Statuses to treat as "closed/done" — add any custom ones from your CW here
-CLOSED_STATUSES = {
-    "closed", "resolved", "cancelled", "completed", "complete",
-    "closed - resolved", "closed - no resolution"
-}
+# Statuses to exclude from stale tickets view — driven by CW_EXCLUDE_STATUSES env var
+# Defaults include common closed statuses; extend via docker-compose environment
+_raw_exclude = os.environ.get("CW_EXCLUDE_STATUSES", "Closed,Resolved,Cancelled,Completed,Complete,Closed - Resolved,Closed - No Resolution")
+CLOSED_STATUSES = {s.strip().lower() for s in _raw_exclude.split(",") if s.strip()}
 
 def get_session():
     s = requests.Session()
