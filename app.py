@@ -106,7 +106,7 @@ HTML = r"""<!DOCTYPE html>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; min-height: 100vh; }
   header { background: var(--header-bg); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
-  .logo { font-size: 1.1rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
+  .logo { font-size: 1rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: white; }
   .logo span { color: var(--good); }
   .header-right { display: flex; align-items: center; gap: 16px; }
   .refresh-status { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
@@ -187,15 +187,8 @@ HTML = r"""<!DOCTYPE html>
 </head>
 <body>
 <header>
-  <div class="logo">CW<span>.</span>Watch</div>
+  <div class="logo">ConnectWise Ticket Dashboard</div>
   <div class="header-right">
-    <div class="refresh-picker">
-      <button class="refresh-opt" data-val="60" onclick="setRefreshInterval(60)">1m</button>
-      <button class="refresh-opt" data-val="120" onclick="setRefreshInterval(120)">2m</button>
-      <button class="refresh-opt" data-val="300" onclick="setRefreshInterval(300)">5m</button>
-      <button class="refresh-opt" data-val="600" onclick="setRefreshInterval(600)">10m</button>
-      <button class="refresh-opt" data-val="900" onclick="setRefreshInterval(900)">15m</button>
-    </div>
     <div class="refresh-status">
       <div class="pulse-dot"></div>
       <span id="last-updated-label">Loading…</span>
@@ -220,7 +213,7 @@ HTML = r"""<!DOCTYPE html>
     <div class="section-header">
       <span class="section-title">Stale Tickets</span>
       <span class="count-pill" id="stale-count-pill">—</span>
-      <span style="font-size:.72rem;color:var(--text-muted)">open · not updated in 8+ hours · grouped by customer</span>
+      <span style="font-size:.72rem;color:var(--text-muted)">open · not updated in 24+ hours · grouped by owner</span>
     </div>
     <div id="stale-container"><div class="loading"><div class="spinner"></div>Loading…</div></div>
   </div>
@@ -361,13 +354,38 @@ async function loadStaleTickets() {
       </div>`;
     })() : '';
 
+    // Unassigned card
+    const unassignedTickets = data.tickets.filter(t => !t.owner || t.owner === 'Unassigned');
+    const unassignedHTML = (() => {
+      const count = unassignedTickets.length;
+      if (count === 0) return '';
+      const cls = ownerCardClass(count);
+      const critCount = unassignedTickets.filter(t => (t.hoursStale||0) >= 48).length;
+      const warnCount = unassignedTickets.filter(t => (t.hoursStale||0) >= 24 && (t.hoursStale||0) < 48).length;
+      const badges = [
+        critCount > 0 ? `<span class="sev-badge crit">${critCount} 48h+</span>` : '',
+        warnCount > 0 ? `<span class="sev-badge warn">${warnCount} 24h+</span>` : ''
+      ].filter(Boolean).join('');
+      return `<div class="card ${cls}" style="height:100%;display:flex;flex-direction:column;justify-content:space-between;">
+        <div>
+          <div class="oldest-label" style="margin-bottom:8px;color:var(--text-dim)">⚠ UNASSIGNED</div>
+          <div class="cust-name" style="font-size:1.3rem">Unassigned</div>
+        </div>
+        <div class="owner-total ${cls.toLowerCase()}" style="font-size:4rem;text-align:center;padding:10px 0">${count}</div>
+        <div class="sev-badges">${badges}</div>
+      </div>`;
+    })();
+
     el.innerHTML = `
       <div class="top-row">
         <div class="oldest-section">
           <div class="oldest-label">🔥 TOP 5 OLDEST</div>
           ${top5HTML}
         </div>
-        <div class="top-owner-col">${topOwnerHTML}</div>
+        <div style="display:flex;flex-direction:column;gap:12px;width:220px;flex-shrink:0">
+          ${unassignedHTML}
+          ${topOwnerHTML}
+        </div>
       </div>
       <div class="section-divider"></div>
       <div class="grid" style="padding:20px">${ownerCards}</div>`;
@@ -441,7 +459,7 @@ def index():
 @app.route("/api/stale-tickets")
 def stale_tickets():
     try:
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=8)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
         cutoff_str = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
 
         params = {
