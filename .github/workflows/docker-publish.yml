@@ -41,3 +41,37 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Delete old images from Docker Hub
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          IMAGE="samuelstreets/connectwise-ticket-dashboard"
+          KEEP=5  # number of most-recent sha- tags to keep
+
+          # Authenticate and get a JWT
+          TOKEN=$(curl -s -X POST "https://hub.docker.com/v2/users/login" \
+            -H "Content-Type: application/json" \
+            -d "{\"username\": \"${DOCKERHUB_USERNAME}\", \"password\": \"${DOCKERHUB_TOKEN}\"}" \
+            | jq -r .token)
+
+          # Fetch all tags, sorted by last_updated descending
+          TAGS=$(curl -s \
+            "https://hub.docker.com/v2/repositories/${IMAGE}/tags?page_size=100&ordering=last_updated" \
+            -H "Authorization: JWT ${TOKEN}" \
+            | jq -r '.results[].name')
+
+          # Collect sha- tags in order (newest first) and delete all beyond KEEP
+          SHA_TAGS=$(echo "$TAGS" | grep '^sha-')
+          COUNT=0
+          for TAG in $SHA_TAGS; do
+            COUNT=$((COUNT + 1))
+            if [ "$COUNT" -gt "$KEEP" ]; then
+              echo "Deleting old tag: $TAG"
+              curl -s -X DELETE \
+                "https://hub.docker.com/v2/repositories/${IMAGE}/tags/${TAG}/" \
+                -H "Authorization: JWT ${TOKEN}"
+            fi
+          done
+          echo "Done. Kept the $KEEP most recent sha- tags."
