@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ConnectWise Ticket Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --crit: #ff3b30;
+    --warn: #e8a020;
+    --good: #3ddc6e;
+    --bg: #111111;
+    --card-bg: #1c1c1c;
+    --card-hover: #222222;
+    --border: #2a2a2a;
+    --text: #f0f0f0;
+    --text-dim: #888888;
+    --text-muted: #444444;
+    --mono: 'Share Tech Mono', monospace;
+    --sans: 'Barlow', sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
+
+  /* ── HEADER ── */
+  header {
+    background: #0d0d0d;
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .logo {
+    font-family: var(--mono);
+    font-size: 1.05rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+  .header-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 1px;
+  }
+  .live-clock {
+    font-family: var(--mono);
+    font-size: 1.1rem;
+    color: var(--good);
+    letter-spacing: 2px;
+  }
+  .harvest-label {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  /* ── CONFIG WARNING ── */
+  .config-warning { background: rgba(255,59,48,0.07); border-left: 3px solid var(--crit); padding: 14px 24px; margin: 16px 24px; display: none; }
+  .config-warning.visible { display: block; }
+  .config-warning h3 { color: var(--crit); font-size: .85rem; font-family: var(--mono); margin-bottom: 6px; letter-spacing: 1px; }
+  .config-warning p { font-size: .8rem; color: var(--text-dim); line-height: 1.8; }
+  .config-warning code { background: rgba(255,255,255,.06); padding: 1px 6px; color: var(--warn); font-family: var(--mono); }
+
+  /* ── MAIN ── */
+  main { padding: 20px 24px; }
+
+  /* ── SECTION HEADER ── */
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 18px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-title {
+    font-family: var(--mono);
+    font-size: .75rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .count-pill {
+    font-family: var(--mono);
+    font-size: .7rem;
+    font-weight: 700;
+    padding: 2px 9px;
+    background: var(--crit);
+    color: white;
+  }
+  .section-subtitle { font-size: .7rem; color: var(--text-muted); font-family: var(--mono); letter-spacing: 1px; }
+  .section-gap { margin-bottom: 36px; }
+
+  /* ── TOP ROW ── */
+  .top-row { display: flex; gap: 16px; margin-bottom: 0; align-items: flex-start; }
+  .oldest-section { flex: 1; min-width: 0; }
+  .oldest-label {
+    font-family: var(--mono);
+    font-size: .65rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--crit);
+    margin-bottom: 10px;
+  }
+  .section-divider { border-top: 1px solid var(--border); margin: 18px 0; }
+
+  /* ── GRID ── */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; align-items: start; }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--card-bg);
+    border-left: 4px solid;
+    padding: 14px 16px;
+    transition: background 0.15s ease;
+  }
+  .card.Red   { border-left-color: var(--crit); }
+  .card.Amber { border-left-color: var(--warn); }
+  .card.Green { border-left-color: var(--good); opacity: 0.6; }
+  .card:hover { background: var(--card-hover); opacity: 1 !important; }
+  .expandable-card { cursor: pointer; user-select: none; }
+
+  .card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+  .owner-name {
+    font-family: var(--sans);
+    font-size: .95rem;
+    font-weight: 700;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .expand-icon {
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    margin-left: 6px;
+    display: inline-block;
+    transition: transform 0.2s ease;
+  }
+  .card-meta {
+    font-family: var(--mono);
+    font-size: .62rem;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+  .ticket-count-badge {
+    font-family: var(--mono);
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .ticket-count-badge.red   { color: var(--crit); }
+  .ticket-count-badge.amber { color: var(--warn); }
+  .ticket-count-badge.green { color: var(--good); }
+
+  .sev-badges { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
+  .sev-badge {
+    font-family: var(--mono);
+    font-size: .6rem;
+    padding: 2px 7px;
+    letter-spacing: 1px;
+  }
+  .sev-badge.crit { background: rgba(255,59,48,.12); color: var(--crit); border: 1px solid rgba(255,59,48,.2); }
+  .sev-badge.warn { background: rgba(232,160,32,.1); color: var(--warn); border: 1px solid rgba(232,160,32,.18); }
+
+  /* ── TICKET LIST ── */
+  .ticket-list { display: none; margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px; cursor: default; }
+
+  .issue-item {
+    padding: 7px 10px;
+    border-left: 3px solid;
+    margin-bottom: 5px;
+    background: rgba(0,0,0,0.25);
+  }
+  .sev-critical { border-left-color: var(--crit); }
+  .sev-warning  { border-left-color: var(--warn); }
+  .sev-stale    { border-left-color: #333; }
+
+  .issue-summary {
+    font-family: var(--sans);
+    font-size: .8rem;
+    font-weight: 600;
+    display: block;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text);
+  }
+  .sev-stale .issue-summary { color: #505050; font-style: italic; }
+
+  .stale-hours {
+    font-family: var(--mono);
+    font-size: .6rem;
+    padding: 1px 6px;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+  .sev-critical .stale-hours { background: rgba(255,59,48,.15); color: var(--crit); }
+  .sev-warning  .stale-hours { background: rgba(232,160,32,.12); color: var(--warn); }
+  .sev-stale    .stale-hours { background: rgba(50,50,50,.5); color: #505050; }
+
+  .instruction {
+    display: block;
+    font-family: var(--mono);
+    font-size: .62rem;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .instruction a { color: inherit; text-decoration: none; }
+  .instruction a:hover { color: var(--good); }
+
+  /* ── SIDEBAR ── */
+  .sidebar-cards { display: flex; flex-direction: column; gap: 10px; width: 190px; flex-shrink: 0; }
+  .summary-card {
+    background: var(--card-bg);
+    border-left: 4px solid;
+    padding: 12px 14px;
+  }
+  .summary-card.Red   { border-left-color: var(--crit); }
+  .summary-card.Amber { border-left-color: var(--warn); }
+  .summary-card.Green { border-left-color: var(--good); }
+  .summary-label {
+    font-family: var(--mono);
+    font-size: .58rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+  .summary-name {
+    font-family: var(--sans);
+    font-size: .9rem;
+    font-weight: 700;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 6px;
+  }
+  .summary-count {
+    font-family: var(--mono);
+    font-size: 2.6rem;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+    padding: 6px 0;
+  }
+  .summary-count.red   { color: var(--crit); }
+  .summary-count.amber { color: var(--warn); }
+  .summary-count.green { color: var(--good); }
+
+  /* ── STATES ── */
+  .loading { display: flex; align-items: center; justify-content: center; padding: 60px; color: var(--text-dim); gap: 10px; font-family: var(--mono); font-size: .72rem; letter-spacing: 2px; }
+  .spinner { width: 14px; height: 14px; border: 2px solid #2a2a2a; border-top-color: var(--good); border-radius: 50%; animation: spin .8s linear infinite; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error-msg { padding: 30px; color: var(--crit); font-family: var(--mono); font-size: .78rem; letter-spacing: 1px; }
+  .empty-state { text-align: center; padding: 60px 24px; }
+  .empty-state .big-check { font-size: 1.8rem; margin-bottom: 8px; color: var(--good); }
+  .empty-state p { color: var(--text-dim); font-family: var(--mono); font-size: .72rem; text-transform: uppercase; letter-spacing: 2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">ConnectWise Ticket Dashboard</div>
+  <div class="header-right">
+    <div class="live-clock" id="live-clock">00:00:00</div>
+    <div class="harvest-label">Last Harvest&nbsp;<span id="last-updated-label">—</span></div>
+  </div>
+</header>
+
+<div class="config-warning" id="config-warning">
+  <h3>// API NOT CONFIGURED</h3>
+  <p>Set <code>CW_SITE</code>, <code>CW_COMPANY</code>, <code>CW_PUBLIC_KEY</code>, <code>CW_PRIVATE_KEY</code>, <code>CW_CLIENT_ID</code> in your docker-compose.yml environment section.</p>
+</div>
+
+<main>
+  <div class="section-gap">
+    <div class="section-header">
+      <span class="section-title">Stale Tickets</span>
+      <span class="count-pill" id="stale-count-pill">—</span>
+      <span class="section-subtitle">open · not updated in 24h+ · grouped by owner</span>
+    </div>
+    <div id="stale-container"><div class="loading"><div class="spinner"></div>LOADING...</div></div>
+  </div>
+</main>
+
+<script>
+let REFRESH_INTERVAL = parseInt('{{ refresh_interval }}') || 300;
+const THRESH_RED   = {{ thresh_red }};
+const THRESH_AMBER = {{ thresh_amber }};
+let countdown = REFRESH_INTERVAL;
+
+// Live clock
+function updateClock() {
+  document.getElementById('live-clock').textContent =
+    new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// Auto-refresh countdown (silent)
+setInterval(() => {
+  countdown--;
+  if (countdown <= 0) { countdown = REFRESH_INTERVAL; refreshAll(); }
+}, 1000);
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+}
+
+function sevClass(hours) {
+  if (hours >= 48) return 'sev-critical';
+  if (hours >= 24) return 'sev-warning';
+  return 'sev-stale';
+}
+
+function ownerCardClass(count) {
+  if (count >= THRESH_RED)   return 'Red';
+  if (count >= THRESH_AMBER) return 'Amber';
+  return 'Green';
+}
+
+function toggleTickets(event, card) {
+  if (event.target.closest('a')) return;
+  const list = card.querySelector('.ticket-list');
+  if (!list) return;
+  const icon = card.querySelector('.expand-icon');
+  if (list.style.display === 'none' || !list.style.display) {
+    list.style.display = 'block';
+    if (icon) icon.style.transform = 'rotate(180deg)';
+  } else {
+    list.style.display = 'none';
+    if (icon) icon.style.transform = 'rotate(0deg)';
+  }
+}
+
+async function loadStaleTickets() {
+  const el = document.getElementById('stale-container');
+  const pill = document.getElementById('stale-count-pill');
+  try {
+    const res = await fetch('/api/stale-tickets');
+    const data = await res.json();
+    if (data.error) { el.innerHTML = `<div class="error-msg">// ERROR: ${data.error}</div>`; pill.textContent='ERR'; return; }
+    pill.textContent = data.count;
+    if (!data.tickets.length) {
+      el.innerHTML = `<div class="empty-state"><div class="big-check">✓</div><p>All tickets up to date</p></div>`;
+      return;
+    }
+
+    const allSorted = [...data.tickets].sort((a,b) => (b.hoursStale||0) - (a.hoursStale||0));
+
+    // Top 5 oldest
+    const top5 = allSorted.slice(0, 5);
+    const top5HTML = top5.map(t => {
+      const sc = sevClass(t.hoursStale||0);
+      const h = t.hoursStale !== null ? t.hoursStale : '?';
+      const url = `https://${window._cwSite||'eu.myconnectwise.net'}/v4_6_release/services/system_io/Service/fv_sr100_request.rails?service_recid=${t.id}`;
+      return `<div class="issue-item ${sc}">
+        <span class="issue-summary">#${t.id} — ${t.summary||'(no summary)'}<span class="stale-hours">${h}h</span></span>
+        <span class="instruction"><a href="${url}" target="_blank">${t.owner||'Unassigned'} · ${t.company||''} · ${t.board||''} · ${t.status||''} · ${fmtDate(t.lastUpdated)}</a></span>
+      </div>`;
+    }).join('');
+
+    // Group by owner
+    const byOwner = {};
+    for (const t of data.tickets) {
+      const owner = t.owner || 'Unassigned';
+      if (!byOwner[owner]) byOwner[owner] = [];
+      byOwner[owner].push(t);
+    }
+    const ownersSorted = Object.entries(byOwner).sort(([,a],[,b]) => b.length - a.length);
+
+    // Owner grid cards
+    const ownerCards = ownersSorted.map(([owner, tickets]) => {
+      const cls = ownerCardClass(tickets.length);
+      const critCount = tickets.filter(t => (t.hoursStale||0) >= 48).length;
+      const warnCount = tickets.filter(t => (t.hoursStale||0) >= 24 && (t.hoursStale||0) < 48).length;
+      const badges = [
+        critCount > 0 ? `<span class="sev-badge crit">${critCount} × 48H+</span>` : '',
+        warnCount > 0 ? `<span class="sev-badge warn">${warnCount} × 24H+</span>` : ''
+      ].filter(Boolean).join('');
+
+      const issueHTML = tickets.map(t => {
+        const sc = sevClass(t.hoursStale||0);
+        const h = t.hoursStale !== null ? t.hoursStale : '?';
+        const url = `https://${window._cwSite||'eu.myconnectwise.net'}/v4_6_release/services/system_io/Service/fv_sr100_request.rails?service_recid=${t.id}`;
+        return `<div class="issue-item ${sc}">
+          <span class="issue-summary">#${t.id} — ${t.summary||'(no summary)'}<span class="stale-hours">${h}h</span></span>
+          <span class="instruction"><a href="${url}" target="_blank">${t.company||''} · ${t.board||''} · ${t.status||''} · ${fmtDate(t.lastUpdated)}</a></span>
+        </div>`;
+      }).join('');
+
+      return `<div class="card ${cls} expandable-card" onclick="toggleTickets(event, this)">
+        <div class="card-top">
+          <div style="min-width:0;flex:1">
+            <div class="owner-name">${owner}<span class="expand-icon">▼</span></div>
+            <div class="card-meta">${tickets.length} stale ticket${tickets.length !== 1 ? 's' : ''}</div>
+          </div>
+          <div class="ticket-count-badge ${cls.toLowerCase()}">${tickets.length}</div>
+        </div>
+        <div class="sev-badges">${badges}</div>
+        <div class="ticket-list">${issueHTML}</div>
+      </div>`;
+    }).join('');
+
+    // Sidebar: unassigned
+    const unassignedTickets = data.tickets.filter(t => !t.owner || t.owner === 'Unassigned');
+    const unassignedHTML = (() => {
+      const count = unassignedTickets.length;
+      if (count === 0) return '';
+      const cls = ownerCardClass(count);
+      const critCount = unassignedTickets.filter(t => (t.hoursStale||0) >= 48).length;
+      const warnCount = unassignedTickets.filter(t => (t.hoursStale||0) >= 24 && (t.hoursStale||0) < 48).length;
+      const badges = [
+        critCount > 0 ? `<span class="sev-badge crit">${critCount} × 48H+</span>` : '',
+        warnCount > 0 ? `<span class="sev-badge warn">${warnCount} × 24H+</span>` : ''
+      ].filter(Boolean).join('');
+      return `<div class="summary-card ${cls}">
+        <div class="summary-label">⚠ Unassigned</div>
+        <div class="summary-name">No Owner</div>
+        <div class="summary-count ${cls.toLowerCase()}">${count}</div>
+        <div class="sev-badges">${badges}</div>
+      </div>`;
+    })();
+
+    // Sidebar: top owner
+    const topOwnerHTML = ownersSorted[0] ? (() => {
+      const [owner, tickets] = ownersSorted[0];
+      const cls = ownerCardClass(tickets.length);
+      const critCount = tickets.filter(t => (t.hoursStale||0) >= 48).length;
+      const warnCount = tickets.filter(t => (t.hoursStale||0) >= 24 && (t.hoursStale||0) < 48).length;
+      const badges = [
+        critCount > 0 ? `<span class="sev-badge crit">${critCount} × 48H+</span>` : '',
+        warnCount > 0 ? `<span class="sev-badge warn">${warnCount} × 24H+</span>` : ''
+      ].filter(Boolean).join('');
+      return `<div class="summary-card ${cls}">
+        <div class="summary-label">Most Tickets</div>
+        <div class="summary-name">${owner}</div>
+        <div class="summary-count ${cls.toLowerCase()}">${tickets.length}</div>
+        <div class="sev-badges">${badges}</div>
+      </div>`;
+    })() : '';
+
+    el.innerHTML = `
+      <div class="top-row">
+        <div class="oldest-section">
+          <div class="oldest-label">// Top 5 Oldest</div>
+          ${top5HTML}
+        </div>
+        <div class="sidebar-cards">
+          ${unassignedHTML}
+          ${topOwnerHTML}
+        </div>
+      </div>
+      <div class="section-divider"></div>
+      <div class="grid">${ownerCards}</div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="error-msg">// ERROR: ${e.message}</div>`;
+  }
+}
+
+async function checkConfig() {
+  try {
+    const data = await fetch('/api/config-check').then(r=>r.json());
+    window._cwSite = (data.site || '').replace(/^api-/, '');
+    if (!data.configured) document.getElementById('config-warning').classList.add('visible');
+  } catch(e) {}
+}
+
+function refreshAll() {
+  const now = new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  document.getElementById('last-updated-label').textContent = now;
+  loadStaleTickets();
+}
+
+checkConfig();
+refreshAll();
+</script>
+</body>
+</html>
