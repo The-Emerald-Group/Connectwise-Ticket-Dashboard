@@ -8,8 +8,7 @@ from collections import defaultdict
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# Point Flask's template folder to the project root (where index.html lives)
-app = Flask(__name__, template_folder=".")
+app = Flask(__name__)
 
 CW_SITE        = os.environ.get("CW_SITE", "api-eu.myconnectwise.net")
 CW_COMPANY     = os.environ.get("CW_COMPANY", "")
