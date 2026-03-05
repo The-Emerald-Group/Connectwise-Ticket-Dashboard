@@ -4,8 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ConnectWise Ticket Dashboard</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
+
 <style>
   :root {
     --crit: #ff3b30;
@@ -18,8 +17,8 @@
     --text: #f0f0f0;
     --text-dim: #888888;
     --text-muted: #444444;
-    --mono: 'Share Tech Mono', monospace;
-    --sans: 'Barlow', sans-serif;
+    --mono: 'Segoe UI', sans-serif;
+    --sans: 'Segoe UI', sans-serif;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
@@ -50,18 +49,18 @@
     align-items: flex-end;
     gap: 1px;
   }
-  .live-clock {
-    font-family: var(--mono);
-    font-size: 1.1rem;
+  .harvest-time {
+    font-size: 1rem;
     color: var(--good);
-    letter-spacing: 2px;
+    font-weight: 600;
+    letter-spacing: 1px;
   }
   .harvest-label {
-    font-family: var(--mono);
     font-size: 0.6rem;
     color: var(--text-dim);
     letter-spacing: 2px;
     text-transform: uppercase;
+    text-align: right;
   }
 
   /* ── CONFIG WARNING ── */
@@ -280,8 +279,8 @@
 <header>
   <div class="logo">ConnectWise Ticket Dashboard</div>
   <div class="header-right">
-    <div class="live-clock" id="live-clock">00:00:00</div>
-    <div class="harvest-label">Last Harvest&nbsp;<span id="last-updated-label">—</span></div>
+    <div class="harvest-time" id="last-updated-label">—</div>
+    <div class="harvest-label">Last Harvest</div>
   </div>
 </header>
 
@@ -306,14 +305,6 @@ let REFRESH_INTERVAL = parseInt('{{ refresh_interval }}') || 300;
 const THRESH_RED   = {{ thresh_red }};
 const THRESH_AMBER = {{ thresh_amber }};
 let countdown = REFRESH_INTERVAL;
-
-// Live clock
-function updateClock() {
-  document.getElementById('live-clock').textContent =
-    new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
-}
-updateClock();
-setInterval(updateClock, 1000);
 
 // Auto-refresh countdown (silent)
 setInterval(() => {
